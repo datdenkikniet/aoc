@@ -111,20 +111,22 @@ fn main() -> std::io::Result<()> {
     let (_, seeds) = seeds.split_once(':').unwrap();
     let mut seeds: Vec<u64> = parse_int_list(seeds.trim());
 
-    let mut seed_ranges = Vec::with_capacity(seeds.len() / 2);
+    let mut seed_ranges = Vec::new();
     let mut seeds_iter = seeds.iter();
+    println!("Loading seeds...");
 
     while let Some(start) = seeds_iter.next() {
         let len = seeds_iter.next().unwrap();
 
-        seed_ranges.push(SeedRange {
-            start: *start,
-            len: *len,
-        });
+        for seed in *start..*start + len - 1 {
+            seed_ranges.push(seed);
+        }
     }
 
+    println!("Loaded {} seeds...", seed_ranges.len());
+
     // First line is always just the map name
-    while lines.next().is_some() {
+    while let Some(map) = lines.next() {
         let mut ranges = Vec::new();
 
         while let Some(line) = lines.next() {
@@ -141,7 +143,7 @@ fn main() -> std::io::Result<()> {
             })
         }
 
-        seeds.iter_mut().for_each(|v| {
+        let transform = |v: &mut u64| {
             for range in &ranges {
                 if range.contains(*v) {
                     let diff = *v - range.source_start;
@@ -150,8 +152,14 @@ fn main() -> std::io::Result<()> {
                     break;
                 }
             }
-        });
+        };
 
+        seeds.iter_mut().for_each(transform);
+        seed_ranges.iter_mut().for_each(transform);
+
+        println!("Finished {}.", map.split_once(':').unwrap().0);
+
+        /*
         let mut unmapped_ranges = seed_ranges;
         let mut new_seed_ranges = Vec::new();
         loop {
@@ -191,15 +199,13 @@ fn main() -> std::io::Result<()> {
             "Min seed range: {:?}",
             seed_ranges.iter().min_by(|a, b| a.start.cmp(&b.start))
         );
+        */
     }
 
     println!("Lowest location: {}", seeds.iter().min().unwrap());
     println!(
         "Lowest location (ranges): {:?}",
-        seed_ranges
-            .iter()
-            .min_by(|a, b| a.start.cmp(&b.start))
-            .unwrap()
+        seed_ranges.iter().min().unwrap()
     );
 
     Ok(())
