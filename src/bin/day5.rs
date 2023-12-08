@@ -66,13 +66,19 @@ impl Range {
         let transformed_start = self.destination_start + (new_start - self.source_start);
         let transformed_len = new_end - new_start + 1;
 
-        (
-            untransformed_ranges,
-            Some(SeedRange {
-                start: transformed_start,
-                len: transformed_len,
-            }),
-        )
+        let transformed_range = SeedRange {
+            start: transformed_start,
+            len: transformed_len,
+        };
+
+        if transformed_start == 0 {
+            println!(
+                "{:?} transformed {:?} into {:?}",
+                self, range, transformed_range
+            )
+        }
+
+        (untransformed_ranges, Some(transformed_range))
     }
 }
 
@@ -173,19 +179,27 @@ fn main() -> std::io::Result<()> {
             let new_unmapped_ranges = merge_ranges(&new_unmapped_ranges);
 
             if new_unmapped_ranges == unmapped_ranges {
+                new_seed_ranges.extend(new_unmapped_ranges.into_iter());
                 break;
             }
 
-            unmapped_ranges = merge_ranges(&new_unmapped_ranges);
+            unmapped_ranges = new_unmapped_ranges;
         }
 
         seed_ranges = merge_ranges(&new_seed_ranges);
+        println!(
+            "Min seed range: {:?}",
+            seed_ranges.iter().min_by(|a, b| a.start.cmp(&b.start))
+        );
     }
 
     println!("Lowest location: {}", seeds.iter().min().unwrap());
     println!(
-        "Lowest location (ranges): {}",
-        seed_ranges.iter().map(|v| v.start).min().unwrap()
+        "Lowest location (ranges): {:?}",
+        seed_ranges
+            .iter()
+            .min_by(|a, b| a.start.cmp(&b.start))
+            .unwrap()
     );
 
     Ok(())
