@@ -24,6 +24,80 @@ pub struct Decision {
     right: String,
 }
 
+fn part1<'a>(
+    start_node: &str,
+    steps: impl Iterator<Item = &'a Step> + Clone,
+    nodes: &HashMap<String, Decision>,
+    any_z: bool,
+) -> usize {
+    let mut step_iter = steps.cycle();
+    let mut current_node = &String::from(start_node);
+    let mut step_count = 0;
+
+    loop {
+        if current_node == "ZZZ" || any_z && current_node.ends_with('Z') {
+            break;
+        }
+
+        step_count += 1;
+        let step = step_iter.next().unwrap();
+
+        let decision = nodes.get(current_node).unwrap();
+
+        current_node = match step {
+            Step::Left => &decision.left,
+            Step::Right => &decision.right,
+        };
+    }
+
+    step_count
+}
+
+fn part2<'a>(
+    steps: impl Iterator<Item = &'a Step> + Clone,
+    decisions: &HashMap<String, Decision>,
+) -> usize {
+    let nodes: Vec<_> = decisions.keys().collect();
+
+    let nodes_with = |char| {
+        nodes
+            .iter()
+            .filter(move |v| v.ends_with(char))
+            .map(|v| nodes.iter().position(|n| n == v).unwrap())
+    };
+
+    let starting_nodes: Vec<_> = nodes_with('A').collect();
+
+    let nodes_and_steps = starting_nodes.iter().map(|node| {
+        let name = nodes[*node];
+        part1(name, steps.clone(), decisions, true) as u64
+    });
+
+    println!("{}", lcm(nodes_and_steps).unwrap());
+
+    0
+}
+
+fn lcm(values: impl Iterator<Item = u64> + Clone) -> Option<u64> {
+    values.reduce(|a, b| {
+        if a == 0 || b == 0 {
+            0
+        } else {
+            a / (gcd(a, b)) * b
+        }
+    })
+}
+
+fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        let store_b = b;
+        b = a % b;
+        a = store_b;
+    }
+
+    a
+}
+
 fn main() -> std::io::Result<()> {
     let mut lines = std::io::stdin().lines().map(|v| v.unwrap());
 
@@ -34,7 +108,7 @@ fn main() -> std::io::Result<()> {
         .map(|v| Step::try_from(v).unwrap())
         .collect();
 
-    let mut nodes = HashMap::new();
+    let mut decisions = HashMap::new();
     let mut first_node = None;
 
     for line in lines {
@@ -47,7 +121,7 @@ fn main() -> std::io::Result<()> {
         let left = &l[1..];
         let right = &r[..r.len() - 1];
 
-        nodes.insert(
+        decisions.insert(
             name.to_string(),
             Decision {
                 left: left.to_string(),
@@ -60,33 +134,11 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    let mut step_iter = steps.iter();
-    let mut current_node = &String::from("AAA");
-    let mut step_count = 0;
+    let part1 = part1("AAA", steps.iter(), &decisions, false);
+    let part2 = part2(steps.iter(), &decisions);
 
-    loop {
-        if current_node == "ZZZ" {
-            break;
-        }
-
-        step_count += 1;
-        let step = if let Some(step) = step_iter.next() {
-            step
-        } else {
-            step_iter = steps.iter();
-            step_iter.next().unwrap()
-        };
-        let step = step;
-
-        let decision = nodes.get(current_node).unwrap();
-
-        current_node = match step {
-            Step::Left => &decision.left,
-            Step::Right => &decision.right,
-        };
-    }
-
-    println!("Took {step_count} steps.");
+    println!("Part 1 took {part1} steps.");
+    println!("Part 2 took {part2} steps");
 
     Ok(())
 }
