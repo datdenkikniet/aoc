@@ -1,10 +1,22 @@
-fn part1(sequences: Vec<Vec<i64>>) -> i64 {
+fn part1(sequences: &Vec<Vec<i64>>) -> i64 {
     assert!(sequences[sequences.len() - 1].iter().all(|v| *v == 0));
 
     let mut diff = 0;
     for sequence in sequences.iter().rev().skip(1) {
         let last_val = sequence[sequence.len() - 1];
         diff = last_val + diff;
+    }
+
+    diff
+}
+
+fn part2(sequences: &Vec<Vec<i64>>) -> i64 {
+    assert!(sequences[sequences.len() - 1].iter().all(|v| *v == 0));
+
+    let mut diff = 0;
+    for sequence in sequences.iter().rev().skip(1) {
+        let last_val = sequence[0];
+        diff = last_val - diff;
     }
 
     diff
@@ -22,7 +34,8 @@ fn main() -> std::io::Result<()> {
         })
         .collect();
 
-    let mut sum = 0;
+    let mut part1_sum = 0;
+    let mut part2_sum = 0;
     for mut sequence in sequences {
         let mut this_line_sequences = vec![sequence.clone()];
         while !sequence.iter().all(|v| v == &0) {
@@ -40,11 +53,11 @@ fn main() -> std::io::Result<()> {
             sequence = diffs;
         }
 
-        let part1 = part1(this_line_sequences);
-        println!("{part1}");
-        sum += part1;
+        part1_sum += part1(&this_line_sequences);
+        part2_sum += part2(&this_line_sequences);
     }
 
-    println!("Part1: {sum}");
+    println!("Part 1: {part1_sum}");
+    println!("Part 2: {part2_sum}");
     Ok(())
 }
