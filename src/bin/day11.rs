@@ -12,6 +12,7 @@ impl Galaxy {
     }
 }
 
+#[derive(Debug, Clone)]
 struct Universe {
     galaxies: Vec<Galaxy>,
 }
@@ -58,7 +59,7 @@ impl Universe {
             .unwrap_or(0)
     }
 
-    pub fn expand(&mut self) {
+    pub fn expand_by(&mut self, value: usize) {
         let mut empty_rows = Vec::new();
 
         for row in 0..=self.max_row() {
@@ -74,8 +75,15 @@ impl Universe {
             }
         }
 
-        let down_shift = |r| empty_rows.iter().take_while(|v| v < &&r).count();
-        let right_shift = |c| empty_cols.iter().take_while(|v| v < &&c).count();
+        let down_shift = |r| {
+            let empty_rows = empty_rows.iter().take_while(|v| v < &&r).count();
+            (value * empty_rows) - empty_rows
+        };
+
+        let right_shift = |c| {
+            let empty_cols = empty_cols.iter().take_while(|v| v < &&c).count();
+            (value * empty_cols) - empty_cols
+        };
 
         self.galaxies.iter_mut().for_each(|Galaxy(r, c)| {
             *r = *r + down_shift(*r);
@@ -83,12 +91,20 @@ impl Universe {
         });
     }
 
-    pub fn pairs(&self) -> impl Iterator<Item = (Galaxy, Galaxy)> + '_ {
+    pub fn expand(&mut self) {
+        self.expand_by(2)
+    }
+
+    pub fn pairs(&self) -> impl Iterator<Item = (Galaxy, Galaxy)> + Clone + '_ {
         self.galaxies
             .iter()
             .enumerate()
             .flat_map(|(skip, g1)| self.galaxies.iter().skip(skip + 1).map(|g2| (*g1, *g2)))
     }
+}
+
+fn sum_of_paths(universe: &Universe) -> usize {
+    universe.pairs().map(|(g1, g2)| g1.shortest_path(&g2)).sum()
 }
 
 fn main() -> std::io::Result<()> {
@@ -104,15 +120,13 @@ fn main() -> std::io::Result<()> {
     }
 
     let mut universe = Universe::new(galaxies);
-    universe.expand();
+    let mut older_universe = universe.clone();
 
-    println!(
-        "{}",
-        universe
-            .pairs()
-            .map(|(g1, g2)| g1.shortest_path(&g2))
-            .sum::<usize>()
-    );
+    universe.expand();
+    older_universe.expand_by(1_000_000);
+
+    println!("{}", sum_of_paths(&universe));
+    println!("{}", sum_of_paths(&older_universe));
 
     Ok(())
 }
