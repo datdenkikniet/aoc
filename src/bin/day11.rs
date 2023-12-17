@@ -99,7 +99,7 @@ impl Universe {
         self.galaxies
             .iter()
             .enumerate()
-            .flat_map(|(skip, g1)| self.galaxies.iter().skip(skip + 1).map(|g2| (*g1, *g2)))
+            .flat_map(|(skip, g1)| self.galaxies[skip..].iter().map(|g2| (*g1, *g2)))
     }
 }
 
