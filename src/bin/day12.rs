@@ -34,29 +34,53 @@ impl std::fmt::Display for SpringRecordAndCounts {
 }
 
 impl SpringRecordAndCounts {
-    fn arrangements(records: &[SpringRecord]) -> Vec<Vec<Spring>> {
-        let arrangements_this_iter = match records.last() {
-            None => return Vec::new(),
-            Some(SpringRecord::Damaged) => &[Spring::Damaged][..],
-            Some(SpringRecord::Operational) => &[Spring::Operational],
-            Some(SpringRecord::Unknown) => &[Spring::Operational, Spring::Damaged],
-        };
+    fn arrangements<'a, F>(records: &[SpringRecord], mut visitor: F)
+    where
+        F: FnMut(&[Spring]),
+    {
+        let mut state = Vec::with_capacity(records.len());
+        let indices_to_flip: Vec<_> = records
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, v)| {
+                if v == &SpringRecord::Unknown {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        let nested_arrangements = Self::arrangements(&records[..records.len() - 1]);
-        let mut output_arrangements = Vec::new();
+        state.clear();
+        records
+            .iter()
+            .map(|v| match v {
+                SpringRecord::Operational => Spring::Operational,
+                SpringRecord::Damaged => Spring::Damaged,
+                SpringRecord::Unknown => Spring::Operational,
+            })
+            .for_each(|v| state.push(v));
 
-        if nested_arrangements.is_empty() {
-            output_arrangements = arrangements_this_iter.iter().map(|v| vec![*v]).collect();
-        } else {
-            for arrangement in arrangements_this_iter {
-                for mut nested in nested_arrangements.clone() {
-                    nested.push(arrangement.clone());
-                    output_arrangements.push(nested);
+        let max = 2u64.checked_pow(indices_to_flip.len() as u32).unwrap();
+
+        for mut flip_state in 0..max {
+            indices_to_flip.iter().for_each(|v| {
+                state[*v] = Spring::Operational;
+            });
+
+            let mut indices = indices_to_flip.iter();
+            while flip_state > 0 {
+                let should_flip = (flip_state & 1) == 1;
+                flip_state >>= 1;
+                let next_index = indices.next().unwrap();
+
+                if should_flip {
+                    state[*next_index] = Spring::Damaged;
                 }
             }
-        }
 
-        output_arrangements
+            visitor(&state);
+        }
     }
 
     fn groups(arrangement: &[Spring]) -> impl Iterator<Item = (usize, Spring)> + '_ {
@@ -108,19 +132,36 @@ impl SpringRecordAndCounts {
     }
 
     pub fn valid_arrangements(&self) -> usize {
-        let output_arrangements = Self::arrangements(&self.records);
+        let mut state = 0;
 
-        output_arrangements
-            .into_iter()
-            .filter(|a| self.is_valid(&a))
-            .count()
+        Self::arrangements(&self.records, |a| {
+            if self.is_valid(a) {
+                state += 1;
+            }
+        });
+
+        state
+    }
+
+    pub fn unfold(&mut self) {
+        println!("Unfolding");
+        self.counts = std::iter::repeat(self.counts.iter())
+            .take(5)
+            .flat_map(|v| v.cloned())
+            .collect();
+
+        self.records = std::iter::repeat(self.records.iter())
+            .take(5)
+            .flat_map(|v| v.cloned())
+            .collect();
+        println!("Done unfolding");
     }
 }
 
 fn main() -> std::io::Result<()> {
     let lines = std::io::stdin().lines().map(|v| v.unwrap());
 
-    let total_valid_arrangements: usize = lines
+    let records: Vec<_> = lines
         .map(|line| {
             let (springs, counts) = line.split_once(' ').unwrap();
 
@@ -139,13 +180,16 @@ fn main() -> std::io::Result<()> {
                 .map(|v| v.parse::<usize>().unwrap())
                 .collect();
 
-            let record = SpringRecordAndCounts {
+            SpringRecordAndCounts {
                 records: springs,
                 counts,
-            };
-
-            record.valid_arrangements()
+            }
         })
+        .collect();
+
+    let total_valid_arrangements: usize = records
+        .iter()
+        .map(SpringRecordAndCounts::valid_arrangements)
         .sum();
 
     println!("Valid arrangements: {total_valid_arrangements}.");
