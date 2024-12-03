@@ -62,7 +62,7 @@ fn find_mul(input: &str) -> Option<(usize, usize)> {
 
     let mut num1 = 0;
     let mut num2 = 0;
-    let mut len = 0;
+    let mut len = 4;
     let mut parsed_num1 = false;
 
     for i in nums_endparen.chars().take(8) {
@@ -89,6 +89,5 @@ fn find_mul(input: &str) -> Option<(usize, usize)> {
         }
     }
 
-    let len = len + 4;
     Some((len, (num1 * num2) as usize))
 }
