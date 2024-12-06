@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(usize)]
 pub enum Direction {
@@ -139,6 +141,7 @@ fn part2(map: Vec<Vec<Location>>, guard_position: (usize, usize)) {
     let (y_len, x_len) = (map.len(), map[0].len());
 
     let mut loops = 0;
+    let start = Instant::now();
     for x in 0..x_len {
         for y in 0..y_len {
             let mut map = map.clone();
@@ -156,5 +159,5 @@ fn part2(map: Vec<Vec<Location>>, guard_position: (usize, usize)) {
         }
     }
 
-    println!("Part 2: {loops}");
+    println!("Part 2: {loops}. {} ms", start.elapsed().as_millis());
 }
