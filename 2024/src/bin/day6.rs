@@ -85,7 +85,10 @@ fn main() {
     part2(map.clone(), guard_position);
 }
 
-fn walk(mut map: Vec<Vec<Location>>, mut guard_position: (usize, usize)) -> Option<usize> {
+fn walk(
+    map: &mut Vec<Vec<Location>>,
+    mut guard_position: (usize, usize),
+) -> (impl Iterator<Item = (usize, usize)> + '_, bool) {
     let mut direction = Direction::North;
     let (y_len, x_len) = (map.len(), map[0].len());
 
@@ -94,6 +97,7 @@ fn walk(mut map: Vec<Vec<Location>>, mut guard_position: (usize, usize)) -> Opti
         .collect();
 
     walked_directions[guard_position.1][guard_position.0][direction as usize] = true;
+    let mut is_loop = false;
 
     loop {
         let mut next_position = None;
@@ -114,7 +118,8 @@ fn walk(mut map: Vec<Vec<Location>>, mut guard_position: (usize, usize)) -> Opti
             map[new_y][new_x] = Location::Visited;
 
             if walked_directions[new_y][new_x][direction as usize] {
-                return None;
+                is_loop = true;
+                break;
             }
 
             walked_directions[new_y][new_x][direction as usize] = true;
@@ -123,39 +128,37 @@ fn walk(mut map: Vec<Vec<Location>>, mut guard_position: (usize, usize)) -> Opti
         }
     }
 
-    let count = map
-        .iter()
-        .flat_map(|v| v.iter())
-        .filter(|p| **p == Location::Visited)
-        .count();
+    let visited_positions = map.iter().enumerate().flat_map(|(y, row)| {
+        row.iter()
+            .enumerate()
+            .filter_map(move |(x, location)| (location == &Location::Visited).then_some((x, y)))
+    });
 
-    Some(count)
+    (visited_positions, is_loop)
 }
 
-fn part1(map: Vec<Vec<Location>>, guard_position: (usize, usize)) {
-    let count = walk(map, guard_position).unwrap();
+fn part1(mut map: Vec<Vec<Location>>, guard_position: (usize, usize)) {
+    let (visited_positions, _) = walk(&mut map, guard_position);
+    let count = visited_positions.count();
     println!("Part 1: {count}");
 }
 
 fn part2(map: Vec<Vec<Location>>, guard_position: (usize, usize)) {
-    let (y_len, x_len) = (map.len(), map[0].len());
+    let mut map_clone = map.clone();
+    let (places_to_block, _) = walk(&mut map_clone, guard_position);
 
     let mut loops = 0;
     let start = Instant::now();
-    for x in 0..x_len {
-        for y in 0..y_len {
-            let mut map = map.clone();
+    for (x, y) in places_to_block {
+        if (x, y) == guard_position {
+            continue;
+        }
 
-            if map[y][x].is_obstructed() {
-                continue;
-            } else if (x, y) == guard_position {
-                continue;
-            }
-
-            map[y][x] = Location::Obstructed;
-            if walk(map, guard_position).is_none() {
-                loops += 1;
-            }
+        let mut map = map.clone();
+        map[y][x] = Location::Obstructed;
+        let (_, is_loop) = walk(&mut map, guard_position);
+        if is_loop {
+            loops += 1;
         }
     }
 
