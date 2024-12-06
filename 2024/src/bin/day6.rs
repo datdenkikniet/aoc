@@ -100,6 +100,7 @@ fn walk(mut map: Vec<Vec<Location>>, mut guard_position: (usize, usize)) -> Opti
             if let Some((new_x, new_y)) = direction.make_move(guard_position, (x_len, y_len)) {
                 if !map[new_y][new_x].is_obstructed() {
                     next_position = Some((new_x, new_y));
+                    break;
                 } else {
                     direction.rotate_right();
                 }
