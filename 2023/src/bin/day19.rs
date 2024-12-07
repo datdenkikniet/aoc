@@ -149,52 +149,77 @@ fn part2<'a>(workflows: &HashMap<WorkflowName, Workflow>) {
         let mut accepted = 0;
 
         for rule in &workflow.rules {
+            // Calculate multiplier for this part in case we accept or reject
+            // values.
             let rest_available: usize = [X, M, A, S]
                 .into_iter()
                 .filter(|v| v != &rule.operand)
                 .map(|v| available_ranges[v as usize].len())
                 .product();
 
+            // For the available range of the current rating category.
             let available_range = &mut available_ranges[rule.operand as usize];
 
+            // Find the range that we consume with this rule, and
+            // update the available range appropriately.
             let consumed_range = match rule.operator {
                 Operator::Gt => {
                     let start = rule.num.max(available_range.start);
                     let end = available_range.end;
+
+                    // The new end of the available range is the start of this
+                    // range (we cut a part from the "top").
                     available_range.end = start;
                     start..end
                 }
                 Operator::Lt => {
                     let start = available_range.start;
                     let end = (rule.num - 1).min(available_range.end);
+
+                    // The new start of the available range is the end of this
+                    // range (we cut a part from the "bottom").
                     available_range.start = end;
                     start..end
                 }
             };
 
+            // The amount of elements in the available range that
+            // we will consume.
             let count = consumed_range.len();
 
+            // If in an end state, accept or reject the amount of elements in this
+            // range times the amount of all other elements.
             if rule.destination.is_accepted() {
                 accepted += count * rest_available;
             } else if rule.destination.is_rejected() {
                 rejected += count * rest_available;
             } else {
+                // When the rule goes to another workflow, calculate the acceptance for that workflow
+                // given the subset of items accepted by this rule.
+                //
+                // This subset is: the current state of available ranges, but replacing
+                // the available range for the current operator with whatever it is that
+                // the current rule is consuming.
                 let mut copy = available_ranges.clone();
                 copy[rule.operand as usize] = consumed_range.clone();
+
+                let expected_count: usize = copy.iter().map(|v| v.len()).product();
+                // Sanity check: expected count is equal to the rest of the available items.
+                assert_eq!(expected_count, count * rest_available);
 
                 let (dest_accepted, dest_rejected) =
                     calculate_acceptance(workflows, &rule.destination, &mut copy);
 
-                assert_eq!(
-                    dest_accepted + dest_rejected,
-                    consumed_range.len() * rest_available
-                );
+                // Sanity check #2: the amount of elements accepted/rejected by the
+                // sub-rule is equal to the amount expected by the given ranges.
+                assert_eq!(dest_accepted + dest_rejected, expected_count);
 
                 accepted += dest_accepted;
                 rejected += dest_rejected;
             }
         }
 
+        // For all the leftovers, handle end state.
         let left = total - (rejected + accepted);
         if workflow.otherwise.is_accepted() {
             accepted += left;
@@ -202,17 +227,25 @@ fn part2<'a>(workflows: &HashMap<WorkflowName, Workflow>) {
             rejected += left;
         } else {
             let count: usize = available_ranges.iter().map(|v| v.len()).product();
-            assert_eq!(count, left, "{current_workflow}, {available_ranges:?}");
+            // Sanity check: amount of items in the currently available ranges is equal to
+            // the total available at the start, minus the items we've already accepted/rejected.
+            assert_eq!(count, left);
 
+            // Calculate acceptance for sub-part.
             let (dest_accepted, dest_rejected) =
                 calculate_acceptance(workflows, &workflow.otherwise, available_ranges);
 
             accepted += dest_accepted;
             rejected += dest_rejected;
+
+            // Sanity check: amount of items accepted/rejected by sub-rule
+            // is equal to count available from input.
             assert_eq!(dest_accepted + dest_rejected, count);
         }
 
-        assert_eq!(accepted + rejected, total, "{current_workflow}");
+        // Sanity check: total accepted/rejected item count is
+        // equal to count available from input.
+        assert_eq!(accepted + rejected, total);
 
         (accepted, rejected)
     }
