@@ -1,0 +1,127 @@
+use std::{collections::HashSet, usize};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Direction {
+    North,
+    East,
+    South,
+    West,
+}
+
+impl Direction {
+    pub fn do_move(
+        &self,
+        (x, y): (usize, usize),
+        (x_len, y_len): (usize, usize),
+    ) -> Option<(usize, usize)> {
+        let (new_x, new_y) = match self {
+            Direction::North => (x, y.checked_sub(1)?),
+            Direction::East => (x + 1, y),
+            Direction::South => (x, y + 1),
+            Direction::West => (x.checked_sub(1)?, y),
+        };
+
+        if new_x < x_len && new_y < y_len {
+            Some((new_x, new_y))
+        } else {
+            None
+        }
+    }
+
+    fn moves(pos: (usize, usize), dims: (usize, usize)) -> impl Iterator<Item = (usize, usize)> {
+        Self::all().flat_map(move |d| d.do_move(pos, dims))
+    }
+
+    pub fn all() -> impl Iterator<Item = Direction> {
+        [Self::North, Self::East, Self::South, Self::West].into_iter()
+    }
+}
+
+fn main() {
+    let lines: Vec<_> = std::io::stdin().lines().map(|v| v.unwrap()).collect();
+
+    let mut height_map = Vec::new();
+
+    for line in lines {
+        let mut this_line = Vec::new();
+        for char in line.chars() {
+            if char == '.' {
+                this_line.push(usize::MAX);
+            } else {
+                this_line.push(char as usize - '0' as usize);
+            }
+        }
+        height_map.push(this_line);
+    }
+
+    part1(&height_map);
+    part2(&height_map);
+}
+
+fn find_trail_heads(
+    (x, y): (usize, usize),
+    map: &Vec<Vec<usize>>,
+    trail_heads: &mut HashSet<(usize, usize)>,
+) {
+    let height = map[y][x];
+
+    if height == 0 {
+        trail_heads.insert((x, y));
+    } else {
+        let target_height = height - 1;
+
+        let dims = (map[0].len(), map.len());
+
+        let moves = Direction::moves((x, y), dims).filter(|(x, y)| map[*y][*x] == target_height);
+
+        for (x, y) in moves {
+            find_trail_heads((x, y), map, trail_heads)
+        }
+    }
+}
+
+fn part1(height_map: &Vec<Vec<usize>>) {
+    let starts = (0..height_map.len())
+        .flat_map(|y| (0..height_map[0].len()).map(move |x| (x, y)))
+        .filter(|(x, y)| height_map[*y][*x] == 9);
+
+    let score: usize = starts
+        .map(|pos| {
+            let mut trail_heads = HashSet::new();
+            find_trail_heads(pos, &height_map, &mut trail_heads);
+            trail_heads.len()
+        })
+        .sum();
+
+    println!("Part 1: {score}");
+}
+
+fn unique_paths((x, y): (usize, usize), map: &Vec<Vec<usize>>) -> usize {
+    let height = map[y][x];
+    if map[y][x] == 0 {
+        return 1;
+    } else {
+        let target_height = height - 1;
+
+        let dims = (map[0].len(), map.len());
+        let moves = Direction::moves((x, y), dims).filter(|(x, y)| map[*y][*x] == target_height);
+
+        let mut sum = 0;
+
+        for (x, y) in moves {
+            sum += unique_paths((x, y), map);
+        }
+
+        sum
+    }
+}
+
+fn part2(height_map: &Vec<Vec<usize>>) {
+    let starts = (0..height_map.len())
+        .flat_map(|y| (0..height_map[0].len()).map(move |x| (x, y)))
+        .filter(|(x, y)| height_map[*y][*x] == 9);
+
+    let unique_paths: usize = starts.map(|v| unique_paths(v, &height_map)).sum();
+
+    println!("Part 2: {unique_paths}");
+}
