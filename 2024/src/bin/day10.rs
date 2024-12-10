@@ -58,25 +58,26 @@ fn main() {
     part2(&height_map);
 }
 
-fn find_trail_heads(
-    (x, y): (usize, usize),
-    map: &Vec<Vec<usize>>,
-    trail_heads: &mut HashSet<(usize, usize)>,
-) {
+fn walk<F, T>((x, y): (usize, usize), map: &Vec<Vec<usize>>, f: &mut F) -> T
+where
+    F: FnMut((usize, usize)) -> T,
+    T: std::ops::Add<Output = T> + Default,
+{
     let height = map[y][x];
+    let dims = (map[0].len(), map.len());
 
     if height == 0 {
-        trail_heads.insert((x, y));
+        return f((x, y));
     } else {
         let target_height = height - 1;
 
-        let dims = (map[0].len(), map.len());
-
         let moves = Direction::moves((x, y), dims).filter(|(x, y)| map[*y][*x] == target_height);
 
+        let mut sum = T::default();
         for (x, y) in moves {
-            find_trail_heads((x, y), map, trail_heads)
+            sum = sum + walk((x, y), map, f);
         }
+        sum
     }
 }
 
@@ -86,34 +87,14 @@ fn part1(height_map: &Vec<Vec<usize>>) {
         .filter(|(x, y)| height_map[*y][*x] == 9);
 
     let score: usize = starts
-        .map(|pos| {
+        .map(|start| {
             let mut trail_heads = HashSet::new();
-            find_trail_heads(pos, &height_map, &mut trail_heads);
-            trail_heads.len()
+            let mut found_trail_head = |pos| trail_heads.insert(pos) as usize;
+            walk(start, height_map, &mut found_trail_head)
         })
         .sum();
 
     println!("Part 1: {score}");
-}
-
-fn unique_paths((x, y): (usize, usize), map: &Vec<Vec<usize>>) -> usize {
-    let height = map[y][x];
-    if map[y][x] == 0 {
-        return 1;
-    } else {
-        let target_height = height - 1;
-
-        let dims = (map[0].len(), map.len());
-        let moves = Direction::moves((x, y), dims).filter(|(x, y)| map[*y][*x] == target_height);
-
-        let mut sum = 0;
-
-        for (x, y) in moves {
-            sum += unique_paths((x, y), map);
-        }
-
-        sum
-    }
 }
 
 fn part2(height_map: &Vec<Vec<usize>>) {
@@ -121,7 +102,12 @@ fn part2(height_map: &Vec<Vec<usize>>) {
         .flat_map(|y| (0..height_map[0].len()).map(move |x| (x, y)))
         .filter(|(x, y)| height_map[*y][*x] == 9);
 
-    let unique_paths: usize = starts.map(|v| unique_paths(v, &height_map)).sum();
+    let unique_paths: usize = starts
+        .map(|start| {
+            let mut found_path = |_| 1;
+            walk(start, height_map, &mut found_path)
+        })
+        .sum();
 
     println!("Part 2: {unique_paths}");
 }
