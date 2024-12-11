@@ -18,9 +18,7 @@ fn part1(stones: &[usize]) {
     let mut old_stones = stones.to_vec();
     let mut new_stones = Vec::with_capacity(2 * old_stones.len());
 
-    for blink in 0..25 {
-        let start = Instant::now();
-
+    for _ in 0..25 {
         new_stones.clear();
 
         for stone in old_stones.iter().cloned() {
@@ -40,12 +38,6 @@ fn part1(stones: &[usize]) {
         }
 
         std::mem::swap(&mut old_stones, &mut new_stones);
-
-        println!(
-            "Blink {} took {} ms",
-            blink + 1,
-            start.elapsed().as_millis()
-        );
     }
 
     println!(
@@ -56,13 +48,14 @@ fn part1(stones: &[usize]) {
 }
 
 fn part2(stones: &[usize]) {
+    let start = Instant::now();
     let mut known = HashMap::new();
     let sum: usize = stones
         .iter()
         .map(|v| expanded_count(&mut known, 75, *v))
         .sum();
 
-    println!("Part 2: {sum}");
+    println!("Part 2: {sum}. {} ms", start.elapsed().as_millis());
 }
 
 fn expanded_count(
