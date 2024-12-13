@@ -1,10 +1,10 @@
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Point {
     x: usize,
     y: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Machine {
     a: Point,
     b: Point,
@@ -33,6 +33,8 @@ impl Machine {
 
         let mut result = None;
 
+        // TODO: what math do I need to do here? Surely
+        // there's a better way...
         for i in 0.. {
             let a_x = a.x * i * b_mul;
             let a_y = a.y * i * b_mul;
@@ -77,9 +79,24 @@ fn main() {
         machines.push(Machine { a, b, prize });
     }
 
-    let result: usize = machines.iter().flat_map(Machine::solve).sum();
+    part1(&machines);
+    part2(&machines);
+}
 
+fn part1(machines: &[Machine]) {
+    let result: usize = machines.iter().flat_map(Machine::solve).sum();
     println!("Part 1: {result}");
+}
+
+fn part2(machines: &[Machine]) {
+    let mut machines: Vec<_> = machines.iter().cloned().collect();
+    machines.iter_mut().for_each(|m| {
+        m.prize.x += 10000000000000;
+        m.prize.y += 10000000000000
+    });
+
+    let result: usize = machines.iter().flat_map(Machine::solve).sum();
+    println!("Part 2: {result}");
 }
 
 fn parse_line(input: &str) -> Point {
