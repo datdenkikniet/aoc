@@ -1,17 +1,27 @@
 #[derive(Debug, PartialEq)]
-pub struct ProgramState<'a> {
-    program: &'a mut [isize],
-    input: isize,
+pub struct ProgramState {
+    program: Vec<isize>,
+    inputs: Vec<isize>,
+    input_idx: usize,
     output: isize,
 }
 
-impl<'a> ProgramState<'a> {
-    pub fn new(input: isize, program: &'a mut [isize]) -> Self {
+impl ProgramState {
+    pub fn new(input: isize, program: &[isize]) -> Self {
+        Self::new_multi_input(vec![input], program.to_vec())
+    }
+
+    pub fn new_multi_input(inputs: Vec<isize>, program: Vec<isize>) -> Self {
         Self {
-            input,
+            inputs,
+            input_idx: 0,
             output: 0,
-            program,
+            program: program.to_vec(),
         }
+    }
+
+    pub fn set_program(&mut self, program: Vec<isize>) {
+        self.program = program;
     }
 
     pub fn run_to_exit(&mut self) {
@@ -62,7 +72,9 @@ impl<'a> ProgramState<'a> {
 
                     assert_eq!(prm(), ParamMode::Position);
 
-                    program[destination] = self.input;
+                    let input = self.inputs[self.input_idx];
+                    self.input_idx += 1;
+                    program[destination] = input;
                     2
                 }
                 4 => {
@@ -121,7 +133,7 @@ impl<'a> ProgramState<'a> {
     }
 
     pub fn program(&self) -> &[isize] {
-        self.program
+        &self.program
     }
 
     pub fn output(&self) -> isize {
