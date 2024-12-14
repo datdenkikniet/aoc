@@ -3,6 +3,7 @@ fn main() {
     let pixels: Vec<_> = line.chars().map(|v| v as usize - '0' as usize).collect();
 
     part1(&pixels);
+    part2(&pixels);
 }
 
 fn part1(pixels: &[usize]) {
@@ -34,4 +35,33 @@ fn part1(pixels: &[usize]) {
         });
 
     println!("Part 1: {}", ones * twos);
+}
+
+fn part2(pixels: &[usize]) {
+    let width = 25;
+    let height = 6;
+
+    let layers: Vec<_> = pixels.chunks(width * height).collect();
+
+    let mut output = vec![0; width * height];
+    for idx in 0..(width * height) {
+        for layer in layers.iter().rev() {
+            if layer[idx] != 2 {
+                output[idx] = layer[idx];
+            }
+        }
+    }
+
+    println!("Part 2:");
+    for row in output.chunks(width) {
+        for value in row {
+            if *value == 0 {
+                print!(" ");
+            } else {
+                print!("█");
+            }
+        }
+        println!();
+    }
+    println!();
 }
