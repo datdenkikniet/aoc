@@ -49,6 +49,48 @@ fn main() {
     }
 
     part1(&robots);
+    part2(&robots);
+}
+
+fn part2(robots: &[Robot]) {
+    let mut robots = robots.to_vec();
+
+    for iter in 1.. {
+        robots.iter_mut().for_each(|r| r.make_move(1));
+
+        if has_line(&robots) {
+            println!("Part 2: {iter}");
+            print_robots(&robots);
+            break;
+        }
+    }
+}
+
+fn has_line(robots: &[Robot]) -> bool {
+    for bot in robots {
+        let mut len = 0;
+
+        let y = bot.position.1;
+        let mut x_min = bot.position.0;
+        let mut x_plus = bot.position.0;
+
+        while robots
+            .iter()
+            .filter(|b| b.position == (x_plus + 1, y) || b.position == (x_min - 1, y))
+            .count()
+            >= 2
+        {
+            x_plus += 1;
+            x_min -= 1;
+            len += 2;
+        }
+
+        if len > 10 {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn part1(robots: &[Robot]) {
@@ -92,4 +134,36 @@ fn part1(robots: &[Robot]) {
     let prod: usize = quadrant_sums.into_iter().product();
 
     println!("Part 1: {prod}");
+}
+
+fn print_robots(robots: &[Robot]) {
+    let x_len = robots[0].room_dims.0;
+    let y_len = robots[0].room_dims.1;
+
+    let mut rows: Vec<Vec<usize>> = (0..y_len)
+        .map(|_| (0..x_len).map(|_| 0).collect())
+        .collect();
+
+    for x in 0..x_len {
+        for y in 0..y_len {
+            for robot in robots {
+                if robot.position.0 == x && robot.position.1 == y {
+                    rows[y as usize][x as usize] += 1;
+                }
+            }
+        }
+    }
+
+    for y in 0..y_len {
+        for x in 0..x_len {
+            let val = rows[y as usize][x as usize];
+
+            if val == 0 {
+                print!(".");
+            } else {
+                print!("{val}");
+            }
+        }
+        println!();
+    }
 }
