@@ -1,9 +1,11 @@
+use std::{collections::VecDeque, task::Poll};
+
 #[derive(Debug, PartialEq)]
 pub struct ProgramState {
     program: Vec<isize>,
-    inputs: Vec<isize>,
-    input_idx: usize,
+    inputs: VecDeque<isize>,
     output: isize,
+    ip: usize,
 }
 
 impl ProgramState {
@@ -13,10 +15,10 @@ impl ProgramState {
 
     pub fn new_multi_input(inputs: Vec<isize>, program: Vec<isize>) -> Self {
         Self {
-            inputs,
-            input_idx: 0,
+            inputs: inputs.into_iter().collect(),
             output: 0,
             program: program.to_vec(),
+            ip: 0,
         }
     }
 
@@ -24,8 +26,15 @@ impl ProgramState {
         self.program = program;
     }
 
-    pub fn run_to_exit(&mut self) {
-        let mut ip = 0;
+    pub fn add_input(&mut self, input: isize) {
+        self.inputs.push_back(input);
+    }
+
+    pub fn input_len(&self) -> usize {
+        self.inputs.len()
+    }
+
+    pub fn poll(&mut self) -> std::task::Poll<()> {
         let program = &mut self.program;
 
         let get = |program: &[isize], value: isize, param_mode| match param_mode {
@@ -34,6 +43,8 @@ impl ProgramState {
         };
 
         loop {
+            let ip = self.ip;
+
             let op_in = program[ip];
 
             let op = op_in % 100;
@@ -72,10 +83,14 @@ impl ProgramState {
 
                     assert_eq!(prm(), ParamMode::Position);
 
-                    let input = self.inputs[self.input_idx];
-                    self.input_idx += 1;
-                    program[destination] = input;
-                    2
+                    let input = self.inputs.pop_front();
+
+                    if let Some(input) = input {
+                        program[destination] = input;
+                        2
+                    } else {
+                        break Poll::Pending;
+                    }
                 }
                 4 => {
                     let source = program[ip + 1];
@@ -92,7 +107,7 @@ impl ProgramState {
                     let branch = !(should_be_zero ^ is_zero);
 
                     if branch {
-                        ip = get(&program, dst, dst_prm) as usize;
+                        self.ip = get(&program, dst, dst_prm) as usize;
                         0
                     } else {
                         3
@@ -119,17 +134,20 @@ impl ProgramState {
                     4
                 }
                 99 => {
-                    break;
+                    break Poll::Ready(());
                 }
                 _ => todo!(),
             };
 
-            ip += size;
-
-            if program.get(ip) != Some(&99) {
-                assert_eq!(self.output, 0);
-            }
+            self.ip += size;
         }
+    }
+
+    pub fn run_to_exit(&mut self) {
+        self.ip = 0;
+
+        let run_once = self.poll();
+        assert!(run_once.is_ready());
     }
 
     pub fn program(&self) -> &[isize] {
