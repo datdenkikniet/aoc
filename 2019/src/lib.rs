@@ -1,11 +1,59 @@
-use std::{collections::VecDeque, task::Poll};
+use std::{
+    collections::{HashMap, VecDeque},
+    task::Poll,
+};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct ProgramState {
-    program: Vec<isize>,
     inputs: VecDeque<isize>,
     output: isize,
     ip: usize,
+    memory: Memory,
+}
+
+#[derive(Debug)]
+struct Memory {
+    program: Vec<isize>,
+    extra_memory: HashMap<usize, isize>,
+    relative_base: isize,
+}
+
+impl Memory {
+    fn addr(&self, mode: ParamMode, value: isize) -> Option<usize> {
+        match mode {
+            ParamMode::Position => Some(value as _),
+            ParamMode::Immediate => None,
+            ParamMode::Relative => Some((self.relative_base + value) as _),
+        }
+    }
+
+    pub fn get(&self, mode: ParamMode, value: isize) -> isize {
+        let address = if let Some(addr) = self.addr(mode, value) {
+            addr
+        } else {
+            return value;
+        };
+
+        if let Some(value) = self.program.get(address) {
+            *value
+        } else {
+            self.extra_memory.get(&address).cloned().unwrap_or(0)
+        }
+    }
+
+    pub fn set(&mut self, mode: ParamMode, address: isize, value: isize) {
+        let address = self
+            .addr(mode, address)
+            .expect("Cannot make immediate writes");
+
+        let dest = if let Some(destination) = self.program.get_mut(address) {
+            destination
+        } else {
+            self.extra_memory.entry(address).or_insert(0)
+        };
+
+        *dest = value;
+    }
 }
 
 impl ProgramState {
@@ -13,17 +61,21 @@ impl ProgramState {
         Self::new_multi_input(vec![input], program.to_vec())
     }
 
+    pub fn new_empty(program: &[isize]) -> Self {
+        Self::new_multi_input(Vec::new(), program.to_vec())
+    }
+
     pub fn new_multi_input(inputs: Vec<isize>, program: Vec<isize>) -> Self {
         Self {
             inputs: inputs.into_iter().collect(),
             output: 0,
-            program: program.to_vec(),
             ip: 0,
+            memory: Memory {
+                program: program.to_vec(),
+                extra_memory: HashMap::new(),
+                relative_base: 0,
+            },
         }
-    }
-
-    pub fn set_program(&mut self, program: Vec<isize>) {
-        self.program = program;
     }
 
     pub fn add_input(&mut self, input: isize) {
@@ -35,79 +87,68 @@ impl ProgramState {
     }
 
     pub fn poll(&mut self) -> std::task::Poll<()> {
-        let program = &mut self.program;
-
-        let get = |program: &[isize], value: isize, param_mode| match param_mode {
-            ParamMode::Position => program[value as usize],
-            ParamMode::Immediate => value,
-        };
-
         loop {
+            let program = &mut self.memory;
+
             let ip = self.ip;
 
-            let op_in = program[ip];
+            let op_in = program.get(ParamMode::Position, ip as isize);
 
             let op = op_in % 100;
             let mut modes = param_modes(op_in as usize);
-            let mut prm = || modes.next().unwrap();
+
+            macro_rules! get {
+                ($ip_offset:literal) => {{
+                    let prm = modes.next().unwrap();
+                    let address_val = program.get(ParamMode::Position, (ip + $ip_offset) as _);
+                    program.get(prm, address_val)
+                }};
+            }
+
+            macro_rules! set {
+                ($ip_offset:literal, $value:expr) => {{
+                    let prm = modes.next().unwrap();
+                    let address_val = program.get(ParamMode::Position, (ip + $ip_offset) as _);
+                    program.set(prm, address_val, $value);
+                }};
+            }
 
             let size = match op {
                 1 => {
-                    let (v1, v1_prm) = (program[ip + 1], prm());
-                    let (v2, v2_prm) = (program[ip + 2], prm());
-                    let (dest_idx, dst_prm) = (program[ip + 3] as usize, prm());
+                    let v1 = get!(1);
+                    let v2 = get!(2);
 
-                    let v1 = get(program, v1, v1_prm);
-                    let v2 = get(program, v2, v2_prm);
-
-                    assert_eq!(dst_prm, ParamMode::Position);
-
-                    program[dest_idx] = v1 + v2;
+                    set!(3, v1 + v2);
                     4
                 }
                 2 => {
-                    let (v1, v1_prm) = (program[ip + 1], prm());
-                    let (v2, v2_prm) = (program[ip + 2], prm());
-                    let (dest_idx, dst_prm) = (program[ip + 3] as usize, prm());
-
-                    let v1 = get(program, v1, v1_prm);
-                    let v2 = get(program, v2, v2_prm);
-
-                    assert_eq!(dst_prm, ParamMode::Position);
-
-                    program[dest_idx] = v1 * v2;
+                    let v1 = get!(1);
+                    let v2 = get!(2);
+                    set!(3, v1 * v2);
                     4
                 }
                 3 => {
-                    let destination = program[ip + 1] as usize;
-
-                    assert_eq!(prm(), ParamMode::Position);
-
                     let input = self.inputs.pop_front();
 
                     if let Some(input) = input {
-                        program[destination] = input;
+                        set!(1, input);
                         2
                     } else {
                         break Poll::Pending;
                     }
                 }
                 4 => {
-                    let source = program[ip + 1];
-                    self.output = get(program, source, prm());
+                    self.output = get!(1);
                     2
                 }
                 5 | 6 => {
                     let should_be_zero = op == 6;
 
-                    let (val, val_prm) = (program[ip + 1], prm());
-                    let (dst, dst_prm) = (program[ip + 2], prm());
-
-                    let is_zero = get(&program, val, val_prm) == 0;
+                    let is_zero = get!(1) == 0;
                     let branch = !(should_be_zero ^ is_zero);
 
                     if branch {
-                        self.ip = get(&program, dst, dst_prm) as usize;
+                        self.ip = get!(2) as usize;
                         0
                     } else {
                         3
@@ -120,18 +161,16 @@ impl ProgramState {
                         isize::eq as _
                     };
 
-                    let (v1, v1_prm) = (program[ip + 1], prm());
-                    let (v2, v2_prm) = (program[ip + 2], prm());
-                    let (dst, dst_prm) = (program[ip + 3], prm());
+                    let v1 = get!(1);
+                    let v2 = get!(2);
 
-                    assert_eq!(dst_prm, ParamMode::Position);
-
-                    let v1 = get(program, v1, v1_prm);
-                    let v2 = get(program, v2, v2_prm);
-
-                    program[dst as usize] = check(&v1, &v2) as isize;
-
+                    set!(3, check(&v1, &v2) as _);
                     4
+                }
+                9 => {
+                    let rb_offset = get!(1);
+                    program.relative_base += rb_offset;
+                    2
                 }
                 99 => {
                     break Poll::Ready(());
@@ -151,7 +190,7 @@ impl ProgramState {
     }
 
     pub fn program(&self) -> &[isize] {
-        &self.program
+        &self.memory.program
     }
 
     pub fn output(&self) -> isize {
@@ -163,9 +202,11 @@ impl ProgramState {
 enum ParamMode {
     Position,
     Immediate,
+    Relative,
 }
 
-fn param_modes(op: usize) -> impl Iterator<Item = ParamMode> {
+fn param_modes(op: usize) -> impl Iterator<Item = ParamMode> + Clone {
+    #[derive(Clone)]
     struct Iter {
         value: usize,
     }
@@ -175,6 +216,7 @@ fn param_modes(op: usize) -> impl Iterator<Item = ParamMode> {
 
         fn next(&mut self) -> Option<Self::Item> {
             let mode = match self.value % 10 {
+                2 => ParamMode::Relative,
                 1 => ParamMode::Immediate,
                 0 => ParamMode::Position,
                 _ => panic!(),
