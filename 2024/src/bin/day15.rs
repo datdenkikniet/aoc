@@ -12,7 +12,8 @@ pub enum Move {
 pub enum Space {
     Wall,
     Empty,
-    Box,
+    BoxLeft,
+    BoxRight,
 }
 
 #[derive(Debug, Clone)]
@@ -31,17 +32,17 @@ impl Map {
             let mut row = Vec::new();
             for (x, char) in map_line.chars().enumerate() {
                 let space = match char {
-                    '#' => Space::Wall,
-                    'O' => Space::Box,
-                    '.' => Space::Empty,
+                    '#' => [Space::Wall, Space::Wall],
+                    'O' => [Space::BoxLeft, Space::BoxRight],
+                    '.' => [Space::Empty, Space::Empty],
                     '@' => {
-                        bot = (x as isize, y as isize);
-                        Space::Empty
+                        bot = ((x * 2) as isize, y as isize);
+                        [Space::Empty, Space::Empty]
                     }
                     _ => panic!(),
                 };
 
-                row.push(space);
+                row.extend(space);
             }
 
             map.push(row);
@@ -65,25 +66,83 @@ impl Map {
         Self { map, bot, moves }
     }
 
-    fn can_move(&self, (move_x, move_y): (isize, isize)) -> Option<(isize, isize)> {
-        let (mut x, mut y) = self.bot;
+    fn can_move(
+        &self,
+        (current_x, current_y): (isize, isize),
+        (move_x, move_y): (isize, isize),
+    ) -> bool {
+        let (to_x, to_y) = (current_x + move_x, current_y + move_y);
+        let to_space = self.map[to_y as usize][to_x as usize];
+        let is_sideways = move_y == 0;
 
-        loop {
-            x = x + move_x;
-            y = y + move_y;
-
-            let space = self.map[y as usize][x as usize];
-
-            match space {
-                Space::Wall => return None,
-                Space::Empty => return Some((x, y)),
-                Space::Box => continue,
+        match to_space {
+            Space::Empty => true,
+            Space::Wall => false,
+            Space::BoxLeft | Space::BoxRight if is_sideways => {
+                self.can_move((to_x, to_y), (move_x, move_y))
+            }
+            Space::BoxLeft => {
+                self.can_move((to_x + 1, to_y), (move_x, move_y))
+                    && self.can_move((to_x, to_y), (move_x, move_y))
+            }
+            Space::BoxRight => {
+                self.can_move((to_x - 1, to_y), (move_x, move_y))
+                    && self.can_move((to_x, to_y), (move_x, move_y))
             }
         }
     }
 
+    fn do_move(
+        &mut self,
+        (current_x, current_y): (isize, isize),
+        (move_x, move_y): (isize, isize),
+    ) {
+        let (to_x, to_y) = (current_x + move_x, current_y + move_y);
+        let to_space = self.map[to_y as usize][to_x as usize];
+        let is_sideways = move_y == 0;
+
+        match to_space {
+            Space::Wall => panic!(),
+            Space::Empty => {}
+            Space::BoxLeft | Space::BoxRight if is_sideways => {
+                self.do_move((to_x, to_y), (move_x, move_y));
+            }
+            Space::BoxLeft => {
+                self.do_move((to_x, to_y), (move_x, move_y));
+                self.do_move((to_x + 1, to_y), (move_x, move_y));
+            }
+            Space::BoxRight => {
+                self.do_move((to_x, to_y), (move_x, move_y));
+                self.do_move((to_x - 1, to_y), (move_x, move_y));
+            }
+        }
+
+        let current = self.get((current_x, current_y));
+        self.set((to_x, to_y), current);
+        self.set((current_x, current_y), Space::Empty);
+    }
+
+    fn try_move(&mut self, current: (isize, isize), to_move: (isize, isize)) -> bool {
+        if self.can_move(current, to_move) {
+            self.do_move(current, to_move);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn set(&mut self, (x, y): (isize, isize), space: Space) {
+        self.map[y as usize][x as usize] = space;
+    }
+
+    pub fn get(&self, (x, y): (isize, isize)) -> Space {
+        self.map[y as usize][x as usize]
+    }
+
     pub fn poll_move(&mut self) -> core::task::Poll<()> {
         if let Some(the_move) = self.moves.pop_front() {
+            println!("Move: {the_move:?}");
+
             let (x_diff, y_diff) = match the_move {
                 Move::Up => (0, -1),
                 Move::Down => (0, 1),
@@ -91,21 +150,10 @@ impl Map {
                 Move::Right => (1, 0),
             };
 
-            if let Some(mut first_empty) = self.can_move((x_diff, y_diff)) {
-                let (x, y) = self.bot;
+            let (x, y) = self.bot;
+
+            if self.try_move(self.bot, (x_diff, y_diff)) {
                 self.bot = (x + x_diff, y + y_diff);
-
-                let bot_pos = self.bot;
-
-                while first_empty != bot_pos {
-                    let (x_to, y_to) = first_empty;
-                    let (x_from, y_from) = (x_to - x_diff, y_to - y_diff);
-
-                    self.map[y_to as usize][x_to as usize] = Space::Box;
-                    self.map[y_from as usize][x_from as usize] = Space::Empty;
-
-                    first_empty = (x_from, y_from);
-                }
             }
         }
 
@@ -119,13 +167,33 @@ impl Map {
     pub fn box_gps_distances(&self) -> impl Iterator<Item = usize> + '_ {
         self.map.iter().enumerate().flat_map(|(y, row)| {
             row.iter().enumerate().filter_map(move |(x, space)| {
-                if space == &Space::Box {
+                if space == &Space::BoxLeft {
                     Some(y * 100 + x)
                 } else {
                     None
                 }
             })
         })
+    }
+
+    pub fn print(&self) {
+        for (y, row) in self.map.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
+                if (x as isize, y as isize) == self.bot {
+                    print!("@")
+                } else {
+                    let v = match cell {
+                        Space::Wall => '#',
+                        Space::Empty => '.',
+                        Space::BoxLeft => '[',
+                        Space::BoxRight => ']',
+                    };
+
+                    print!("{v}");
+                }
+            }
+            println!();
+        }
     }
 }
 
@@ -134,12 +202,23 @@ fn main() {
     let map = Map::parse(lines);
 
     part1(map.clone());
+    part2(map.clone());
 }
 
 fn part1(mut map: Map) {
+    // while map.poll_move().is_pending() {}
+
+    // let box_sum: usize = map.box_gps_distances().sum();
+
+    // println!("Part 1: {box_sum}");
+}
+
+fn part2(mut map: Map) {
     while map.poll_move().is_pending() {}
+
+    map.print();
 
     let box_sum: usize = map.box_gps_distances().sum();
 
-    println!("Part 1: {box_sum}");
+    println!("Part 2: {box_sum}");
 }
