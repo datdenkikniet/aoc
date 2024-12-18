@@ -14,6 +14,7 @@ fn main() {
         .collect();
 
     part1(&input);
+    part2(&input);
 }
 
 const WIDTH: usize = 71;
@@ -41,6 +42,36 @@ fn part1(falls: &[(usize, usize)]) {
     .unwrap();
 
     println!("Part 1: {result}");
+}
+
+fn part2(falls: &[(usize, usize)]) {
+    let mut map: Vec<Vec<_>> = (0..HEIGHT)
+        .map(|_| (0..WIDTH).map(|_| false).collect())
+        .collect();
+
+    let mut fallen_bytes = falls.iter().cloned();
+
+    for (x, y) in (&mut fallen_bytes).take(FALLEN_BYTES) {
+        map[y][x] = true;
+    }
+
+    for (x, y) in fallen_bytes {
+        let mut path = Vec::new();
+        let mut memoized = HashMap::new();
+        map[y][x] = true;
+        let result = min_path_len(
+            (0, 0),
+            (WIDTH - 1, HEIGHT - 1),
+            &mut path,
+            &map,
+            &mut memoized,
+        );
+
+        if result.is_none() {
+            println!("Part 2: ({x}, {y})");
+            break;
+        }
+    }
 }
 
 fn neighbours(
