@@ -14,6 +14,7 @@ fn main() {
         .collect();
 
     part1(&rotations);
+    part2(&rotations);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -49,4 +50,39 @@ fn part1(rotation: &[Rotation]) {
     }
 
     println!("Part 1: {zeros}");
+}
+
+fn part2(rotation: &[Rotation]) {
+    let mut zeros = 0;
+    let mut current_position = 50;
+
+    for rot in rotation.iter().copied() {
+        match rot {
+            Rotation::Left(c) => {
+                for _ in 0..c {
+                    if current_position == 1 {
+                        zeros += 1;
+                    }
+
+                    if current_position == 0 {
+                        current_position = 99;
+                    } else {
+                        current_position -= 1;
+                    }
+                }
+            }
+            Rotation::Right(c) => {
+                for _ in 0..c {
+                    if current_position == 99 {
+                        current_position = 0;
+                        zeros += 1;
+                    } else {
+                        current_position += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    println!("Part 2: {zeros}");
 }
