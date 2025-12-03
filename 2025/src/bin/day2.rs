@@ -12,6 +12,8 @@ fn main() {
     }
 
     part1(&ranges);
+    part2(&ranges);
+    assert!(!invalid_pt2(60606));
 }
 
 fn part1(ranges: &[RangeInclusive<usize>]) {
@@ -35,4 +37,43 @@ fn invalid(num: usize) -> bool {
     } else {
         false
     }
+}
+
+fn part2(ranges: &[RangeInclusive<usize>]) {
+    let mut sum = 0;
+    for range in ranges.iter().cloned() {
+        for value in range {
+            if invalid_pt2(value) {
+                sum += value;
+            }
+        }
+    }
+    println!("Part 2: {sum}");
+}
+
+fn invalid_pt2(num: usize) -> bool {
+    let log = num.ilog10();
+    let add = if log % 2 == 0 { 0 } else { 1 };
+
+    for n_digits in 1..=(log / 2 + add) {
+        let pow = 10usize.pow(n_digits);
+        let digits = num % pow;
+        let mut left = num / pow;
+
+        // Remove leading-zero false positives.
+        // Example: num: 60606, num_digits: 2
+        if digits < pow / 10 {
+            continue;
+        }
+
+        while (left % pow) == digits {
+            left /= pow;
+        }
+
+        if left == 0 {
+            return true;
+        }
+    }
+
+    return false;
 }
