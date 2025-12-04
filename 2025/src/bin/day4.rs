@@ -18,6 +18,7 @@ fn main() {
     }
 
     part1(&grid);
+    part2(grid);
 }
 
 fn part1(grid: &[Vec<bool>]) {
@@ -33,6 +34,31 @@ fn part1(grid: &[Vec<bool>]) {
     }
 
     println!("Part 1: {total}");
+}
+
+fn part2(mut grid: Vec<Vec<bool>>) {
+    let width = grid[0].len();
+    let mut total = 0;
+
+    loop {
+        let mut any_accessible = false;
+
+        for x in 0..width {
+            for y in 0..grid.len() {
+                if is_accessible_roll(&grid, x, y) {
+                    total += 1;
+                    any_accessible = true;
+                    grid[y][x] = false;
+                }
+            }
+        }
+
+        if !any_accessible {
+            break;
+        }
+    }
+
+    println!("Part 2: {total}");
 }
 
 fn is_accessible_roll(grid: &[Vec<bool>], x: usize, y: usize) -> bool {
